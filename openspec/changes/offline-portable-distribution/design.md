@@ -2,84 +2,99 @@
 
 ## Context
 
-见 [proposal.md](proposal.md) 的动机与范围。代码勘察基于提交 `f2ca43a0`：
-
-- `scripts/make-installer-bundle.mjs` 生成调用 winget/npm 的在线安装脚本，不能作为离线交付物。
-- `scripts/make-standalone-bundle.mjs` 已将依赖压缩后嵌入可执行文件，但会重写版本、重新解析 lock，并依赖 registry 中的 TUI 包；当前发布流程在 Ubuntu 上统一生成多平台产物，未提供各目标平台断网验收证据。
-- 根项目为 TUI 0.11.1，主验证 DSH 0.1.7-rc.2；`standalone/package.json` 仍记录 TUI 0.9.2、DSH 0.1.1-rc.2。构建器仅同步 TUI 版本，不应把旧 standalone 依赖表直接视为当前完整运行依赖。
-- 依赖包含 sharp、PTY/FFI/子进程桥等平台组件；工作区还包含 dsh-auth 与 vendored dsh-std 本地包，必须实化，不能携带指向构建机的链接。
-- `standalone/entry.mjs` 已有独立 DSH_HOME、缓存、profile 初始化的基础；当前初始化会复制 patch，因此不能原样复用为保留用户配置的离线升级入口。
-- 配置文档已有自定义端点能力，`src/dsh-adapter/plugin.ts` 启动时调用更新检查；两者需纳入离线行为测试。
+见 [proposal.md](proposal.md)。仓库已有 standalone 单文件运行时和 DSH profile 初始化，但当前版本清单落后于主仓库、依赖 registry 上的旧 TUI 包，自动更新会访问 GitHub/npm，且当前 updater 替换单个 executable。TUI 用户偏好默认使用 `~/.dsh-tui`，DSH profile 与凭证位于 `$DSH_HOME`；standalone 另有 profile/cache 根目录。离线发行版需隔离全部本产品状态并采用目录级安装/升级。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-在已确认的 Windows、Linux 目标上，以独立目录实现首次及后续离线启动，并通过既有 DSH provider 接缝访问内网模型。运行机器无需包管理器、编译工具或外网下载。
+- 让已确认的三个目标矩阵可以在普通用户权限下、交互式终端运行 dsh-TUI；初装包括工具依赖，升级只传客户端。
+- 让客户端及其子进程使用私有 PATH、仓库配置和用户数据，不改变已有客户端或宿主机全局设置。
+- 通过静态 HTTPS JSON 完成不阻塞启动的更新检查、用户确认、摘要校验、暂存与回滚。
 
 **Non-Goals:**
 
-不制作 MSI/DEB/RPM，不要求单文件 EXE，不打包模型权重，不随附用户业务项目的全部语言 SDK、依赖、浏览器或任意 MCP 服务；不承诺所有 Linux 发行版、国产 CPU、musl 或旧版 Windows 都可运行。不改变现有在线用户的默认行为。
+不保证任意 Linux/麒麟发行版；不打包 JDK/Maven 或任意业务项目 SDK；不自动安装/配置企业 CA、防火墙、npm/Python 仓库或模型网关；不在后台自动下载/安装更新；不承诺没有交互 TTY 的服务模式。
 
 ## Decisions
 
-### 1. 使用目录式完整包
+### 1. 分层初装目录和客户端更新包
 
-新增 `bundle:offline` 构建入口，独立于现有 `bundle:standalone`。Windows 交付 `dsh-tui-offline-<version>-win32-<arch>.zip`，Linux 交付 `dsh-tui-offline-<version>-linux-<arch>-<libc>.tar.gz`。版本、平台、架构与系统基线写入包内 manifest。
+初装产物按 `win10-x64`、`kylin-v10-x64`、`kylin-v10-arm64` 分别构建。ZIP 用于 Windows，TAR.GZ 用于 Linux。目录含 `launcher/`、版本化 `app/releases/<version>/`、`tools/`、`config/` 和许可证/说明/manifest。客户端 release 含当前源码构建的 dsh-TUI、DSH 及完整生产依赖；工具层含目标平台 Git（Windows 版提供 Git Bash）、Python 和一套与当前 DSH 兼容的 Node 运行时。Node 主要供 DSH 使用，由 launcher 设置为 dsh-TUI 与其子进程的私有运行环境；不另附第二套项目 Node 版本。
 
-目录包含 `runtime/`（固定版本 Node.js）、`app/`（生产依赖和编译产物）、`tools/`（必要平台程序）、`config/`（无密钥示例）、启动脚本、`manifest.json`、文件摘要、许可证和说明书。Windows 使用 CMD 启动器，Linux 使用 SH 启动器；启动时显式调用包内 Node，子进程 PATH 优先指向包内 runtime/tools，保留调用者工作目录和参数、退出码。
+首次安装包带客户端和工具层；更新包只带新的客户端 release，不带 Git、Python 或 DSH 使用的 Node。更新 JSON 附带兼容工具层标识；若客户端更新要求不同工具层版本，提示用户重新部署完整初装包。工具层随初装版本固定，不因 dsh-TUI 更新重复下载。JDK/Maven 不随包提供，由用户自行安装并配置。
 
-采用目录式包是为了保留 ESM 动态加载和原生模块的普通文件语义，减少单可执行文件封装的兼容面；代价是文件数和体积增加。仅把 node_modules 复制到离线机或提供 npm 缓存都无法满足无需安装运行时的目标。
+构建当前源码与 dsh-auth、dsh-std 本地包，使用冻结生产依赖锁，不引用构建机路径或旧 standalone registry 包，不静默改写 lockfile。固定 TUI/DSH/Node/工具精确版本、源码提交和目标平台；初装与升级分开构建，Windows 与麒麟目标分别实测。
 
-### 2. 平台矩阵与依赖闭包
+### 2. 打包时注入公开内网配置
 
-任务 1 输出明确的目标清单：OS/版本、架构、libc/系统库、终端、可用 shell、权限和 API 协议。当前不将 x64 当成用户已确认需求。构建主体可先按上述通用目录协议设计；具体二进制选择和完整产物构建必须等待目标清单。
+使用本地 `offline-bundle.config.json` 作为构建输入，提供 npm registry、Python index URL、Nginx manifest URL 以及必要的非敏感发布说明等值。仓库只提交空值/示例模板，把实际配置文件列入 ignore；打包生成的 `config/` 将 npm 与 pip 默认索引配置为用户提供的内网地址，客户端更新器预置 manifest URL。内网仓库匿名可读，不在文件、日志、lock 或包元数据中嵌入凭证。Maven 配置不生成，沿用用户安装环境的设置。
 
-在匹配目标的构建环境准备平台原生模块和 Node.js，Linux 选择覆盖目标系统的构建基线；构建环境可联网，交付运行环境不可依赖公网。Windows 与 Linux 分别验证，不以交叉编译成功代替目标测试。
+包内单套 Node 与 Git 的可执行路径由启动器按平台设置；Python 环境通过包内 `PYTHONHOME`/PATH 指向；仅对 dsh-TUI 与继承其环境的工具进程生效，不写 Windows 注册表、PowerShell profile、shell rc 或机器级变量。Node 版本跟随 DSH 支持范围锁定；不承诺支持任意多版本 Node 项目。模型 API 按用户现有 provider 流程配置 OpenAI-compatible endpoint、模型和 key，密钥写入发行版私有 DSH credential store，不进入 manifest/会话/日志。企业 CA 由 IT 安装到系统信任库。
 
-先构建当前 checkout 的 TUI、dsh-auth 与 dsh-std，生成可安装的本地包并纳入锁定的生产依赖。依赖升级和 lock 更新作为显式准备步骤审核；正式出包使用冻结锁，失败即停止，不能临时解析 latest。DSH 版本以当前 adapter 契约为依据；枚举最终 Cordis composition 的动态依赖、preset、资源与子进程入口，确认依赖闭包。
+### 3. 隔离安装数据
 
-对每个必需原生模块执行真实加载和最小功能探针；sharp 图片能力纳入完整包。检查辅助程序是否由上游运行时下载，改为构建期准备并通过上游支持的路径配置消费。Windows 包含便携 Git/Git Bash 及许可；Linux 记录系统基本 shell/libc 前置条件，随附闭包需要且可分发的辅助程序。不随包分发内核或完整 Linux 用户空间。
+程序目录可位于用户可写的任意位置。启动器仅为该发行版进程设置专属数据根（可由 `DSH_TUI_OFFLINE_HOME` 显式覆盖）：Windows 默认 `%LOCALAPPDATA%\\dsh-tui-offline`，Linux 默认 `$XDG_DATA_HOME/dsh-tui-offline`，未设置 XDG 时 `$HOME/.local/share/dsh-tui-offline`。其子目录分别承载 DSH profile/凭证、TUI 偏好与会话元数据、缓存；将 `$DSH_HOME`、TUI 自有状态目录变量和缓存变量映射至这些目录。实现前枚举 TUI 自有的所有 `homedir()` 路径访问点，经统一 helper 解析；导入其他客户端数据的来源路径仍指向真实用户 home。
 
-### 3. 离线专用启动策略
+首次运行只创建缺省状态，不覆盖已存在自定义设置。跨版本沿用私有数据根。升级只改活跃客户端 release 指针，保留前一 release；切换失败则恢复旧 release。卸载/更换程序目录不删除用户数据。对非交互或无 TTY 调用给出清楚错误；Linux 操作由 SSH 分配 PTY。
 
-新增离线启动标志 `DSH_TUI_OFFLINE=1`，由新启动器设置；不改变普通在线启动默认值。更新入口在发请求前识别离线模式，禁用自动检查，手动更新/在线安装指向离线包替换说明。网络相关 UI 文案走现有 i18n。
+### 4. Nginx JSON 更新契约
 
-使用独立的离线 DSH_HOME（默认用户目录下 `.dsh-tui-offline`），继续使用 DSH 的配置、会话服务和既有 TUI 偏好位置。启动器只在首次初始化时写默认 profile，不覆盖已存在的用户 patch、凭证或会话；包目录与用户可写数据分离，支持已有 standalone home/cache 环境覆盖的兼容映射并在说明中明确。
+打包时把 HTTPS manifest URL 写入客户端配置。由仓库维护者生成 JSON、人工上传到 Nginx 静态目录；推荐 v1 结构如下：
 
-复用并提取 standalone 的初始化能力，启动包内 DSH；不进入普通 launcher 的在线 bootstrap 分支。profile 的包解析始终指向当前本地完整包，不携带构建机绝对路径。升级切换本地解析目标时保留用户配置，并验证新版本所需默认配置与覆盖层能正确组合。
+```json
+{
+  "schemaVersion": 1,
+  "version": "0.11.2",
+  "publishedAt": "2026-09-30T00:00:00Z",
+  "releaseNotes": "修复与改进说明",
+  "platforms": {
+    "win10-x64": {
+      "url": "./dsh-tui-0.11.2-win10-x64.zip",
+      "sizeBytes": 123456789,
+      "sha256": "<64 个十六进制字符>",
+      "requiredToolchainId": "win-tools-1"
+    },
+    "kylin-v10-x64": {
+      "url": "./dsh-tui-0.11.2-kylin-v10-x64.tar.gz",
+      "sizeBytes": 123456789,
+      "sha256": "<64 个十六进制字符>",
+      "requiredToolchainId": "kylin-x64-tools-1"
+    },
+    "kylin-v10-arm64": {
+      "url": "./dsh-tui-0.11.2-kylin-v10-arm64.tar.gz",
+      "sizeBytes": 123456789,
+      "sha256": "<64 个十六进制字符>",
+      "requiredToolchainId": "kylin-arm64-tools-1"
+    }
+  }
+}
+```
 
-### 4. 内网模型及网络行为
+版本严格使用 SemVer。客户端以当前平台键查找产物，且仅接受该平台条目 `requiredToolchainId` 与本地工具层 `toolchainId` 完全相同的更新；否则提示用户重新部署完整初装包。客户端接受同源 HTTPS 相对下载地址或同源 HTTPS 绝对地址；拒绝未知 schema、平台缺项、非 HTTPS、摘要格式错误、尺寸越界和无效版本。Nginx 同目录保存清单和包，部署者先上传包再原子替换 JSON，避免客户端读取到半发布状态。SHA-256 必须与实际包字节匹配；用户明确接受内网 SHA-256 校验，不引入代码签名要求。包大小限制以 manifest `sizeBytes` 和可配置上限验证，构建应给出产物体积。
 
-通过现有 DSH provider 配置输入端点、协议、模型 ID 和凭证；提供 DeepSeek/OpenAI 兼容接口示例，实际协议以环境确认结果验收。密钥只在目标机配置，包、manifest 和日志不得包含真实凭证；内网 CA 通过支持的 CA 配置注入，不关闭 TLS 校验。
+启动后后台有界请求检查，不阻塞 TUI；服务错误/超时静默降级为可诊断的检查失败，不阻止会话。提供手动 `/update` 检查/重试。发现新版本只提示版本与 release notes；用户明确确认后才下载。下载到用户私有 cache，验证字节数与 SHA-256 后解压到 `app/releases/.staging-<version>`，验证必需路径/manifest，原子更新活跃 release 指针，再由 launcher 启动新版本。旧版保留用于本机回退；数据格式若不可逆，更新前告知且备份数据。检查、下载和解压失败均不替换当前 release，错误不泄露凭证或敏感 URL 参数。
 
-启动时不自动探测公共模型列表、不检查公网插件目录、不发送遥测；显式网络工具由部署配置按需求关闭或指向内网服务。离线标志约束产品内置自动网络行为，不作为任意 shell 命令的网络安全边界；强制出站限制由内网网络策略执行。
+覆盖所有当前更新入口：启动后台提示、手动 TUI 更新和 `dsh-tui update` CLI；离线发行版不得再走 GitHub/npm 更新。普通 npm/profile 在线安装行为不变。用户数据私有，更新包只覆盖程序目录，不能覆盖配置和会话。
 
-无 API 配置时可进入配置流程；端点不可达时提供明确诊断，不回退公网端点。模型调用测试覆盖流式响应和 tool calling，仅有文本响应不能算 agent 全功能通过。
+### 5. 独立目标验收
 
-### 5. 完整性与验收产物
-
-manifest 记录源码提交、TUI/DSH/Node 精确版本、平台基线、依赖及辅助程序版本。构建产物附逐文件摘要和压缩包 SHA-256、第三方许可/NOTICE、构建验证报告；提供本地完整性检查命令。摘要用于检测损坏，不能替代可信分发或签名。
-
-最终报告区分“构建成功”“目标断网冒烟通过”“用户内网 API 验收通过”。端点未提供时用本地兼容服务验证协议流程，但不得把模拟结果写成内网实测。所有档案不得含开发缓存、凭证、真实会话或构建机外部链接。
+在 Windows 10 x64 PowerShell 与麒麟 V10 Server x64、ARM64 的交互式 SSH PTY 分别验收；清理开发环境依赖、阻断公网，仅使用配置好的内网 API/包仓库/Nginx。逐项检查 archive 的平台原生依赖、动态插件与辅助程序闭包、Git/Python/Node 可运行、项目依赖能取自预配置镜像、模型流式与工具调用、各数据路径隔离、更新失败保护和升级保留工具层。
 
 ## Risks / Trade-offs
 
-- 原生依赖或系统库不兼容 → 先锁平台基线，在干净目标机验证，未通过目标不发布。
-- 包中遗漏动态加载插件或子进程程序 → 从最终 profile 组合枚举闭包，并验证完整工具流程，不能只测 --version。
-- 旧 standalone 版本漂移 → 独立离线构建使用当前源码和契约验证版本，不自动沿用旧清单。
-- 内网服务只兼容部分 OpenAI/DeepSeek 协议 → 以流式响应和工具调用验收记录支持能力，错误不能静默吞掉。
-- 包较大、系统辅助程序有再分发要求 → 只保留生产闭包，记录尺寸与许可证；不能靠遗漏必需依赖减小体积。
-- 现有共享 TUI 偏好位置影响多版本 → 不新增并行偏好真源，升级回退测试必须检查会话/偏好兼容性。
+- 麒麟 V10 的具体补丁版本、发行版构建变体和底层系统库在实施时需实测 → 未实际通过的组合不进入支持清单。
+- 原生 Git/Python/Node 体积增大，且各有许可证 → 压缩包按平台拆分、随包列出许可证并记录大小。
+- 普通版本清单和文件使用同一 Nginx → SHA 校验可发现损坏，不提供发布者认证；此为用户确认的内网信任模型。
+- 内网镜像地址误填 → 构建前校验配置完整且地址格式合理，首包在隔离目标环境做 pip/npm 取包验收。
+- SSH 未分配 PTY → 启动时识别非交互终端并提示使用 `ssh -t`，不写终端控制序列。
+- 两个用户目录真源容易混淆 → 统一 resolver 和路径清单测试，确保离线版不读写其他客户端状态。
 
 ## Migration Plan
 
-先完成任务 1 环境确认，再实现、验证独立离线通道，保留原在线分发通道。升级通过旁路解压新版本、校验、切换启动器完成，不覆盖旧程序目录；变更用户数据前备份。若 DSH 数据格式不可逆，不承诺直接降级，回退必须连同兼容的数据备份恢复。
+首次由安装包解压到用户可写程序目录，创建新的私有用户数据根并逐步完成模型配置。用户若已有 DSH/TUI 状态，默认不导入、不覆盖；后续可另行提供显式迁移指引。升级前置包与用户数据分离，仅更换客户端 release；升级失败自动恢复前版。卸载只删除程序目录，数据由用户显式备份/清理。构建和验收通过后才上传 Nginx；此 OpenSpec 提案不授权或执行生产上传。
 
-本提案提交不执行发布。完成目标系统断网与内网验收后再单独决定产物分发；OpenSpec 仅在实施任务真实完成后归档。
+## 实施前置输入
 
-## References
-
-- [OpenSpec 官方 CLI 文档](https://github.com/Fission-AI/OpenSpec/blob/main/docs/cli.md)
-- [Node.js 平台与构建约束](https://github.com/nodejs/node/blob/main/BUILDING.md)（实施时按选定 Node tag 复核）
-- [node-pty 平台依赖](https://github.com/microsoft/node-pty)
+- 用户提供 npm registry、Python index 和 Nginx manifest URL 的实际值；目标验收使用实际麒麟 V10 Server x64/ARM64 镜像。
+- 工具版本选择官方仍受支持且兼容 DSH/目标系统的发行线，在构建 lock/manifest 中锁定具体版本；构建时核对官方支持状态和许可证。
