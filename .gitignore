@@ -18,3 +18,8 @@ HANDOVER.md
 .upstream/
 # run-ci-group 保留的失败脚本帧日志（CI 传 artifact，本地随手跑也会生成）
 ci-render-logs/
+# Offline distribution: local environment profiles, toolchains, and generated archives/reports
+/offline/profiles/superbpm.json
+/offline/profiles/hxfl.json
+/dist-offline/
+/offline/tools/

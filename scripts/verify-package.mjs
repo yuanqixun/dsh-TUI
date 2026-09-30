@@ -8,7 +8,21 @@ const input = await new Promise((resolve, reject) => {
   process.stdin.on('error', reject)
 })
 
-const reports = JSON.parse(input)
+let reports
+for (const match of input.matchAll(/(?:^|\n)([\[{])/gu)) {
+  const start = match.index + match[0].length - 1
+  try {
+    const candidate = JSON.parse(input.slice(start))
+    const values = Array.isArray(candidate) ? candidate : Object.values(candidate)
+    if (values.some(value => value !== null && typeof value === 'object' && Array.isArray(value.files))) {
+      reports = candidate
+      break
+    }
+  } catch {
+    // npm lifecycle scripts may write before the JSON report; keep looking.
+  }
+}
+if (reports === undefined) throw new Error('npm pack did not return a readable JSON package report')
 // npm 10 emits an array while npm 11 emits an object keyed by package name.
 const report = Array.isArray(reports) ? reports[0] : Object.values(reports)[0]
 if (report === undefined || !Array.isArray(report.files)) {

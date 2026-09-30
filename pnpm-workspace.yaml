@@ -1,4 +1,5 @@
 packages:
+  - 'offline/runtime'
   - 'vendor/dsh-std/packages/core'
   - 'vendor/dsh-std/packages/manifest'
   - 'vendor/dsh-std/packages/connection'
@@ -106,9 +107,12 @@ overrides:
 allowBuilds:
   # Optional postinstall-only (pi-ai transitive deps): nothing at runtime
   # needs their build scripts.
+  # These packages are runtime-required by local DSH subprocess execution.
+  '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
   esbuild: false
   koffi: false
+  node-pty: true
   protobufjs: false
 minimumReleaseAgeExclude:
   # Same-day alpha adaptation: the 0.1.7-rc.2 cohort is younger than

@@ -18,5 +18,5 @@ export function homeDir(): string {
   return homedir() || process.env.USERPROFILE || process.env.HOME || ''
 }
 
-/** Data directory all preferences/history live in (`~/.dsh-tui`). */
-export const DATA_DIR = join(homeDir(), '.dsh-tui')
+/** Data directory all preferences/history live in (`~/.dsh-tui` by default). */
+export const DATA_DIR = process.env.DSH_TUI_DATA_DIR ?? join(homeDir(), '.dsh-tui')

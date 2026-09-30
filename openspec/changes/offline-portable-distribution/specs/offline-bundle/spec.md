@@ -2,9 +2,21 @@
 
 ## Purpose
 
-为 Windows 10 x64 与麒麟 V10 Server x64/ARM64 提供可在普通用户权限下部署的 dsh-TUI 完整初装包，以及只更新 dsh-TUI 客户端的包。各包携带明确版本和摘要，首次安装及更新都不依赖公网软件源。
+为 Windows 10 x64 与麒麟 V10 Server x64/ARM64 提供可在普通用户权限下部署的 dsh-TUI 完整初装包，以及只更新 dsh-TUI 客户端的包。superbpm 与 hxfl 使用同一应用源码和 SemVer，但拥有独立的打包配置、构建记录、工具链标识和 Nginx 更新清单；产品名称和命令保持 dsh-TUI / dsh-tui。各包携带明确版本和摘要，首次安装及更新都不依赖公网软件源。
 
 ## ADDED Requirements
+
+### Requirement: 两套发行环境配置与构建隔离
+
+打包工具 SHALL 支持 `superbpm` 和 `hxfl` 两个独立 profile。构建输入、构建输出、构建记录、平台工具链 ID 和合并的更新 manifest MUST 按 profile 隔离。两套 profile SHALL 可使用相同 dsh-TUI 版本，但各自从自己的 Nginx 地址发现更新。仓库 MUST 仅提交示例配置；含环境真实地址的打包配置 MUST 被 Git 忽略。构建出的 `config/offline.json` SHALL 可在安装后编辑，重启后生效；修改打包默认值并交付给其他用户时，必须重建完整发行包。模型 API key SHALL 在安装后由用户配置，不进入打包配置。
+
+#### Scenario: 分别构建与发布
+- **WHEN** 维护者分别以 superbpm、hxfl profile 为相同应用版本构建和合并产物
+- **THEN** 每套只纳入本 profile 的记录和产物，并输出使用对应 manifest 地址的构建包
+
+#### Scenario: 修改运行配置
+- **WHEN** 用户安装后修改包内 `config/offline.json` 中的模型地址或更新地址并重启
+- **THEN** 启动器和更新器采用修改后的值；API key 仍由 provider credential 配置管理
 
 ### Requirement: 平台对应的完整初装包
 

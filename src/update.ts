@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { gte, gt, lt, valid } from 'semver'
 import { shellQuote } from './utils/shellQuote.js'
 import { DATA_DIR } from './utils/paths.js'
+import { installOfflineUpdate, offlineCliUpdate, offlineUpdateErrorMessage, resolveOfflineUpdateTarget, type OfflineUpdateTarget } from './offlineUpdate.js'
 
 // Re-exported for scripts/verify-update.mjs and the bin launcher, which reads
 // the compiled copy at lib/types/utils/shellQuote.js.
@@ -102,13 +103,14 @@ export interface TuiUpdateInfo {
   latest: string
   isStandalone?: boolean
   downloadUrl?: string
+  releaseNotes?: string
   /** SHA256SUMS manifest URL when the release publishes one; absent = the update warning path. */
   checksumUrl?: string
 }
 
 /** What a fresh registry lookup says about this install. */
 export type TuiUpdateTarget =
-  | { kind: 'update'; current: string; latest: string; authoritative?: string; isStandalone?: boolean; downloadUrl?: string; checksumUrl?: string }
+  | { kind: 'update'; current: string; latest: string; authoritative?: string; isStandalone?: boolean; downloadUrl?: string; checksumUrl?: string; releaseNotes?: string; offlineTarget?: OfflineUpdateTarget }
   | { kind: 'latest'; current: string; isStandalone?: boolean }
   | { kind: 'unknown'; isStandalone?: boolean }
 
@@ -824,6 +826,15 @@ export async function downloadAndReplaceStandaloneBinary(
  * upgrading to yesterday's version.
  */
 export async function resolveTuiUpdateTarget(): Promise<TuiUpdateTarget> {
+  if (process.env.DSH_TUI_OFFLINE === '1') {
+    const target = await resolveOfflineUpdateTarget()
+    if (target.kind === 'unknown') return { kind: 'unknown', isStandalone: true }
+    if (target.kind === 'latest') return { kind: 'latest', current: target.current!, isStandalone: true }
+    return {
+      kind: 'update', current: target.current!, latest: target.latest!, isStandalone: true,
+      releaseNotes: target.releaseNotes, offlineTarget: target,
+    }
+  }
   const current = installedTuiVersion()
   const currentVersion = current === undefined ? null : valid(current)
   if (currentVersion === null) return { kind: 'unknown' }
@@ -874,6 +885,7 @@ export async function checkForTuiUpdate(): Promise<TuiUpdateInfo | undefined> {
         isStandalone: target.isStandalone,
         downloadUrl: target.downloadUrl,
         checksumUrl: target.checksumUrl,
+        releaseNotes: target.releaseNotes,
       }
     : undefined
 }
@@ -1519,6 +1531,7 @@ export interface TuiUpdateOutcome {
 export async function updateTui(
   profile: string,
   targetVersion?: string,
+  offlineTarget?: OfflineUpdateTarget,
 ): Promise<TuiUpdateOutcome> {
   // Stamp the pre-update version BEFORE pnpm runs: it reads this package's
   // manifest from disk, which the update replaces on the fly — a
@@ -1526,6 +1539,19 @@ export async function updateTui(
   // process then compares new-vs-new and false-alarms "version did not
   // advance" on every successful update (issue #307's screenshots).
   const updatedFrom = installedTuiVersion() ?? ''
+
+  if (process.env.DSH_TUI_OFFLINE === '1') {
+    try {
+      const target = offlineTarget ?? await resolveOfflineUpdateTarget()
+      if (target.kind !== 'update' || (targetVersion !== undefined && target.latest !== targetVersion)) throw new Error('Offline update target expired; check again')
+      process.stderr.write(`dsh-tui: installing offline client ${target.current ?? updatedFrom} → ${target.latest}…\n`)
+      await installOfflineUpdate(target)
+      return { code: 0, updatedFrom, installed: target.latest }
+    } catch (error) {
+      process.stderr.write(`dsh-tui: offline update failed: ${offlineUpdateErrorMessage(error)}\n`)
+      return { code: 1, updatedFrom }
+    }
+  }
 
   if (isStandaloneRuntime()) {
     const target = await resolveTuiUpdateTarget()
@@ -1689,8 +1715,9 @@ export async function updateTuiAndRestart(
   sessionId: string,
   profile: string,
   targetVersion?: string,
+  offlineTarget?: OfflineUpdateTarget,
 ): Promise<TuiUpdateResult> {
-  const outcome = await updateTui(profile, targetVersion)
+  const outcome = await updateTui(profile, targetVersion, offlineTarget)
   const { updatedFrom } = outcome
   if (outcome.code !== 0) return { updateCode: outcome.code, restartCode: outcome.code }
 
@@ -1718,6 +1745,7 @@ export async function updateTuiAndRestart(
  * @returns Process exit code: 0 on success or already-latest, 1 otherwise.
  */
 export async function cliUpdate(profile: string): Promise<number> {
+  if (process.env.DSH_TUI_OFFLINE === '1') return offlineCliUpdate()
   const target = await resolveTuiUpdateTarget()
   if (target.kind === 'latest') {
     process.stdout.write(`dsh-tui: already the latest version (${target.current}).\n`)
@@ -1830,7 +1858,10 @@ export interface TuiRestartOptions {
 export async function restartTui(sessionId: string, options: TuiRestartOptions = {}): Promise<number> {
   const kind = options.kind ?? 'restart'
   const tag = kind === 'update' ? 'update-restart' : 'restart'
-  const argv = [...process.execArgv, ...process.argv.slice(1)]
+  const offlineLauncher = process.env.DSH_TUI_OFFLINE === '1' ? process.env.DSH_TUI_OFFLINE_LAUNCHER : undefined
+  const argv = offlineLauncher === undefined
+    ? [...process.execArgv, ...process.argv.slice(1)]
+    : [offlineLauncher]
   logRestartEvent(`${tag}: spawning replacement`, {
     node: process.execPath,
     argv,

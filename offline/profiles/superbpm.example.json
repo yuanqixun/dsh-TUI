@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "distributionId": "superbpm",
+  "modelApiBaseUrl": "https://model.example.invalid/v1",
+  "npmRegistry": "https://npm.example.invalid/",
+  "pythonIndexUrl": "https://pypi.example.invalid/simple/",
+  "manifestUrl": "https://updates.example.invalid/dsh-tui/manifest.json",
+  "releaseNotes": "替换为本次发布说明",
+  "maxUpdateBytes": 1073741824,
+  "toolchains": {
+    "win10-x64": {
+      "id": "superbpm-win10-x64-tools-1",
+      "nodeVersion": "待锁定",
+      "gitVersion": "待锁定",
+      "pythonVersion": "待锁定",
+      "platformBaseline": "待填写 Windows 10 build、PowerShell 版本、x64 CPU 基线",
+      "sourceDirectory": "offline/tools/superbpm/win10-x64"
+    },
+    "kylin-v10-x64": {
+      "id": "superbpm-kylin-v10-x64-tools-1",
+      "nodeVersion": "待锁定",
+      "gitVersion": "待锁定",
+      "pythonVersion": "待锁定",
+      "platformBaseline": "待填写麒麟 V10 Server 补丁级别、glibc、x64 CPU 基线与 SSH 版本",
+      "sourceDirectory": "offline/tools/superbpm/kylin-v10-x64"
+    },
+    "kylin-v10-arm64": {
+      "id": "superbpm-kylin-v10-arm64-tools-1",
+      "nodeVersion": "待锁定",
+      "gitVersion": "待锁定",
+      "pythonVersion": "待锁定",
+      "platformBaseline": "待填写麒麟 V10 Server 补丁级别、glibc、ARM64 CPU 基线与 SSH 版本",
+      "sourceDirectory": "offline/tools/superbpm/kylin-v10-arm64"
+    }
+  }
+}

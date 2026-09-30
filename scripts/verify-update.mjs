@@ -58,6 +58,8 @@ const {
   getStandaloneAssetName,
 } = await import('../lib/types/update.js')
 const compiledModulePath = fileURLToPath(new URL('../lib/types/update.js', import.meta.url))
+const compiledOfflineUpdatePath = fileURLToPath(new URL('../lib/types/offlineUpdate.js', import.meta.url))
+const compiledOfflineContractsPath = fileURLToPath(new URL('../lib/types/offlineContracts.js', import.meta.url))
 const compiledShellQuotePath = fileURLToPath(new URL('../lib/types/utils/shellQuote.js', import.meta.url))
 const compiledPathsPath = fileURLToPath(new URL('../lib/types/utils/paths.js', import.meta.url))
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -70,6 +72,8 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 function copyUpdateModule(dstDir) {
   mkdirSync(join(dstDir, 'utils'), { recursive: true })
   cpSync(compiledModulePath, join(dstDir, 'update.js'))
+  cpSync(compiledOfflineUpdatePath, join(dstDir, 'offlineUpdate.js'))
+  cpSync(compiledOfflineContractsPath, join(dstDir, 'offlineContracts.js'))
   cpSync(compiledShellQuotePath, join(dstDir, 'utils', 'shellQuote.js'))
   cpSync(compiledPathsPath, join(dstDir, 'utils', 'paths.js'))
 }

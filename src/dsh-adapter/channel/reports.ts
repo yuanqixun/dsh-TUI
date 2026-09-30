@@ -8,7 +8,7 @@ import type { AdapterRuntimeOptions } from '../../adapter/kernel/runtime.js'
 import { fetchBalance } from '../../deepseekBalance.js'
 import { t } from '../../i18n.js'
 import { credentialRefDeclared } from '../../utils/credentials.js'
-import { homeDir } from '../../utils/paths.js'
+import { DATA_DIR, homeDir } from '../../utils/paths.js'
 import { sessionsRoots } from '../compat/index.js'
 import { snapshotLiveSessionEvents } from '../compat/liveSession.js'
 import { getHostGrantStore } from '../host-grants.js'
@@ -135,7 +135,8 @@ export function createReportActions(ctx: Context, deps: {
       t('doctor-context-window', { window: deps.contextWindow() ?? t('doctor-unknown') }),
       `${t('doctor-session', { id: deps.capture().agent.id })}${deps.sessionTitle() ? ` · ${deps.sessionTitle()}` : ''}`,
     ]
-    for (const candidate of [join(homeDir(), '.dsh-tui/cordis.yml'), join(homeDir(), '.dsh/profiles/dsh-tui/cordis.patch.yml')]) {
+    const dshHome = process.env.DSH_HOME?.trim() || join(homeDir(), '.dsh')
+    for (const candidate of [join(DATA_DIR, 'cordis.yml'), join(dshHome, 'profiles', 'dsh-tui', 'cordis.patch.yml')]) {
       lines.push(t('doctor-config', { candidate, state: existsSync(candidate) ? '✓' : t('doctor-config-missing') }))
     }
     for (const dir of sessionsRoots()) lines.push(t('doctor-storage', { dir, state: existsSync(dir) ? '✓' : t('doctor-storage-uninit') }))

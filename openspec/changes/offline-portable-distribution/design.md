@@ -18,7 +18,13 @@
 
 ## Decisions
 
-### 1. 分层初装目录和客户端更新包
+### 1. superbpm 与 hxfl 两套独立发行构建
+
+两套发行环境使用同一源码和应用 SemVer，分别以 `superbpm`、`hxfl` profile 构建；构建输入、输出目录、平台记录、工具链标识和 Nginx manifest 均按发行环境隔离。产品名称与命令仍为 `dsh-TUI` / `dsh-tui`。`offline/profiles/<id>.json` 是本机打包配置，不入库；仓库只提交 schema 和 `.example.json`。superbpm 默认模型 API、更新 manifest、npm/Python 源分别为 `https://aigw.superbpm.com/v1`、`https://dshtui.superbpm.com/update`、`https://hxflnexus.superbpm.com/npm-public`、`https://hxflnexus.superbpm.com/pypi/simple/`；hxfl 分别为 `https://aigw.hxfl.com.cn/v1`、`https://dshtui.hxfl.com.cn/update`、`https://repo.hxfl.com.cn/npm-public`、`https://repo.hxfl.com.cn/pypi/simple/`。仓库匿名访问，配置中不保存凭证。模型 API key 在安装后由用户配置，不进入打包配置。
+
+两个环境各自生成构建记录和更新清单；更新包的工具链 ID 必须带对应发行环境前缀，避免跨环境升级。两套发行版的客户端版本保持一致，但更新地址不同。用户修改构建默认值后重新打包完整发行包；包内 `config/offline.json` 可在安装后编辑，重启后生效，不单独分发配置文件。
+
+### 2. 分层初装目录和客户端更新包
 
 初装产物按 `win10-x64`、`kylin-v10-x64`、`kylin-v10-arm64` 分别构建。ZIP 用于 Windows，TAR.GZ 用于 Linux。目录含 `launcher/`、版本化 `app/releases/<version>/`、`tools/`、`config/` 和许可证/说明/manifest。客户端 release 含当前源码构建的 dsh-TUI、DSH 及完整生产依赖；工具层含目标平台 Git（Windows 版提供 Git Bash）、Python 和一套与当前 DSH 兼容的 Node 运行时。Node 主要供 DSH 使用，由 launcher 设置为 dsh-TUI 与其子进程的私有运行环境；不另附第二套项目 Node 版本。
 
@@ -26,19 +32,19 @@
 
 构建当前源码与 dsh-auth、dsh-std 本地包，使用冻结生产依赖锁，不引用构建机路径或旧 standalone registry 包，不静默改写 lockfile。固定 TUI/DSH/Node/工具精确版本、源码提交和目标平台；初装与升级分开构建，Windows 与麒麟目标分别实测。
 
-### 2. 打包时注入公开内网配置
+### 3. 打包时注入公开内网配置
 
-使用本地 `offline-bundle.config.json` 作为构建输入，提供 npm registry、Python index URL、Nginx manifest URL 以及必要的非敏感发布说明等值。仓库只提交空值/示例模板，把实际配置文件列入 ignore；打包生成的 `config/` 将 npm 与 pip 默认索引配置为用户提供的内网地址，客户端更新器预置 manifest URL。内网仓库匿名可读，不在文件、日志、lock 或包元数据中嵌入凭证。Maven 配置不生成，沿用用户安装环境的设置。
+每环境使用 `offline/profiles/<id>.json` 作为构建输入，提供发行 ID、默认模型 API URL、npm registry、Python index URL、Nginx manifest URL、目标工具链目录/版本和必要的非敏感发布说明。仓库只提交 schema/示例模板，把实际配置文件列入 ignore；打包生成的 `config/offline.json` 将 npm 与 pip 默认索引配置为 profile 中的内网地址，并把模型 API 和更新 manifest 写入用户可编辑配置。内网仓库匿名可读，不在文件、日志、lock 或包元数据中嵌入凭证。Maven 配置不生成，沿用用户安装环境的设置。
 
-包内单套 Node 与 Git 的可执行路径由启动器按平台设置；Python 环境通过包内 `PYTHONHOME`/PATH 指向；仅对 dsh-TUI 与继承其环境的工具进程生效，不写 Windows 注册表、PowerShell profile、shell rc 或机器级变量。Node 版本跟随 DSH 支持范围锁定；不承诺支持任意多版本 Node 项目。模型 API 按用户现有 provider 流程配置 OpenAI-compatible endpoint、模型和 key，密钥写入发行版私有 DSH credential store，不进入 manifest/会话/日志。企业 CA 由 IT 安装到系统信任库。
+包内单套 Node 与 Git 的可执行路径由启动器按平台设置；Python 环境通过包内 `PYTHONHOME`/PATH 指向；仅对 dsh-TUI 与继承其环境的工具进程生效，不写 Windows 注册表、PowerShell profile、shell rc 或机器级变量。Node 版本跟随 DSH 支持范围锁定；不承诺支持任意多版本 Node 项目。用户安装后按现有 provider 流程配置 OpenAI-compatible endpoint、模型和 API key，密钥写入发行版私有 DSH credential store，不进入打包配置、manifest/会话/日志。企业 CA 由 IT 安装到系统信任库。
 
-### 3. 隔离安装数据
+### 4. 隔离安装数据
 
-程序目录可位于用户可写的任意位置。启动器仅为该发行版进程设置专属数据根（可由 `DSH_TUI_OFFLINE_HOME` 显式覆盖）：Windows 默认 `%LOCALAPPDATA%\\dsh-tui-offline`，Linux 默认 `$XDG_DATA_HOME/dsh-tui-offline`，未设置 XDG 时 `$HOME/.local/share/dsh-tui-offline`。其子目录分别承载 DSH profile/凭证、TUI 偏好与会话元数据、缓存；将 `$DSH_HOME`、TUI 自有状态目录变量和缓存变量映射至这些目录。实现前枚举 TUI 自有的所有 `homedir()` 路径访问点，经统一 helper 解析；导入其他客户端数据的来源路径仍指向真实用户 home。
+程序目录可位于用户可写的任意位置。启动器仅为该发行版进程设置专属数据根（可由 `DSH_TUI_OFFLINE_HOME` 显式覆盖）：Windows 默认 `%LOCALAPPDATA%\\dsh-tui-offline\\<distributionId>`，Linux 默认 `$XDG_DATA_HOME/dsh-tui-offline/<distributionId>`，未设置 XDG 时 `$HOME/.local/share/dsh-tui-offline/<distributionId>`。`<distributionId>` 将 superbpm 与 hxfl 的默认数据分开。其子目录分别承载 DSH profile/凭证、TUI 偏好与会话元数据、缓存；将 `$DSH_HOME`、TUI 自有状态目录变量和缓存变量映射至这些目录。实现前枚举 TUI 自有的所有 `homedir()` 路径访问点，经统一 helper 解析；导入其他客户端数据的来源路径仍指向真实用户 home。
 
 首次运行只创建缺省状态，不覆盖已存在自定义设置。跨版本沿用私有数据根。升级只改活跃客户端 release 指针，保留前一 release；切换失败则恢复旧 release。卸载/更换程序目录不删除用户数据。对非交互或无 TTY 调用给出清楚错误；Linux 操作由 SSH 分配 PTY。
 
-### 4. Nginx JSON 更新契约
+### 5. Nginx JSON 更新契约
 
 打包时把 HTTPS manifest URL 写入客户端配置。由仓库维护者生成 JSON、人工上传到 Nginx 静态目录；推荐 v1 结构如下：
 
@@ -77,7 +83,7 @@
 
 覆盖所有当前更新入口：启动后台提示、手动 TUI 更新和 `dsh-tui update` CLI；离线发行版不得再走 GitHub/npm 更新。普通 npm/profile 在线安装行为不变。用户数据私有，更新包只覆盖程序目录，不能覆盖配置和会话。
 
-### 5. 独立目标验收
+### 6. 独立目标验收
 
 在 Windows 10 x64 PowerShell 与麒麟 V10 Server x64、ARM64 的交互式 SSH PTY 分别验收；清理开发环境依赖、阻断公网，仅使用配置好的内网 API/包仓库/Nginx。逐项检查 archive 的平台原生依赖、动态插件与辅助程序闭包、Git/Python/Node 可运行、项目依赖能取自预配置镜像、模型流式与工具调用、各数据路径隔离、更新失败保护和升级保留工具层。
 
@@ -96,5 +102,5 @@
 
 ## 实施前置输入
 
-- 用户提供 npm registry、Python index 和 Nginx manifest URL 的实际值；目标验收使用实际麒麟 V10 Server x64/ARM64 镜像。
+- 已确定 superbpm/hxfl 两套模型、npm、Python、Nginx 默认地址；配置值保存在本机被忽略的 profile 中。目标验收仍需实际麒麟 V10 Server x64/ARM64 镜像、Windows 10 基线和三套锁定工具目录。
 - 工具版本选择官方仍受支持且兼容 DSH/目标系统的发行线，在构建 lock/manifest 中锁定具体版本；构建时核对官方支持状态和许可证。

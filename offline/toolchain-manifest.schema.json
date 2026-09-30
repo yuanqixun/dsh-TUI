@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dsh-TUI offline toolchain manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "platform",
+    "id",
+    "nodeVersion",
+    "gitVersion",
+    "pythonVersion",
+    "platformBaseline",
+    "licenses",
+    "sourceArchives",
+    "files"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "platform": { "enum": ["win10-x64", "kylin-v10-x64", "kylin-v10-arm64"] },
+    "id": { "type": "string", "pattern": "^(superbpm|hxfl)-[A-Za-z0-9][A-Za-z0-9._-]{0,64}$" },
+    "toolchainId": { "type": "string", "pattern": "^(superbpm|hxfl)-[A-Za-z0-9][A-Za-z0-9._-]{0,80}$" },
+    "nodeVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "gitVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "pythonVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "platformBaseline": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "licenses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "git", "python"],
+      "properties": {
+        "node": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "git": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "python": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "sourceArchives": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "git", "python"],
+      "properties": {
+        "node": { "$ref": "#/$defs/sourceArchive" },
+        "git": { "$ref": "#/$defs/sourceArchive" },
+        "python": { "$ref": "#/$defs/sourceArchive" }
+      }
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+    }
+  },
+  "$defs": {
+    "sourceArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+        },
+        "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+      }
+    }
+  }
+}

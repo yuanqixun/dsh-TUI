@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "platform": "kylin-v10-x64",
+  "id": "hxfl-kylin-v10-x64-tools-1",
+  "nodeVersion": "v24.9.0",
+  "gitVersion": "git version 2.51.0",
+  "pythonVersion": "Python 3.13.7",
+  "platformBaseline": "Replace with tested Kylin V10 Server update, glibc, CPU and SSH details",
+  "licenses": {
+    "node": "MIT; bundled third-party notices are included under LICENSES/",
+    "git": "GPL-2.0-or-later; bundled notices are included under LICENSES/",
+    "python": "PSF-2.0; bundled third-party notices are included under LICENSES/"
+  },
+  "sourceArchives": {
+    "node": { "file": "node-v24.9.0-linux-x64.tar.xz", "sha256": "<64 hex characters>" },
+    "git": { "file": "portable-git-linux-x64.tar.gz", "sha256": "<64 hex characters>" },
+    "python": { "file": "python-portable-linux-x64.tar.gz", "sha256": "<64 hex characters>" }
+  },
+  "files": {
+    "git/bin/git": "<64 hex characters>",
+    "node/bin/node": "<64 hex characters>",
+    "python/bin/python3": "<64 hex characters>"
+  }
+}

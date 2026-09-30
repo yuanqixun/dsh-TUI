@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-tui-dev/offline-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-web-app": "0.1.7-rc.2",
+    "@deepseek-harness-tui/dsh-tui": "workspace:*"
+  }
+}

@@ -120,6 +120,12 @@ automatically and resumes the current session. See
 source builds, and troubleshooting, including migration from the former
 `dsh-cc-tui` package.
 
+Maintainers preparing a portable Windows/Kylin deployment can use the
+[offline bundle instructions](scripts/offline/README_EN.md). superbpm and hxfl
+use separate local packaging profiles and update channels while keeping the
+same app version. Fill exact tool versions and tested platform baselines before
+building; an untested platform is not marked as supported.
+
 ### CLI
 
 | Command | Purpose |

@@ -559,6 +559,11 @@ const dict = {
   'update-standalone-available': { zh: '发现便携包新版本：v{{latest}}（当前 v{{current}}）· 输入 /update 自动更新', en: 'New standalone version available: v{{latest}} (current v{{current}}) · type /update to update' },
   'update-standalone-no-checksum': { zh: '该版本未发布 SHA256 校验和，更新包完整性无法验证', en: 'this release publishes no SHA256 checksums; the update payload cannot be integrity-verified' },
   'update-standalone-starting': { zh: '正在下载便携包新版本并自动替换，完成后会自动重启并恢复当前会话……', en: 'Downloading and replacing standalone binary. The TUI will restart and resume this session when finished…' },
+  'offline-update-confirm': { zh: '确认从内网更新清单安装 dsh-TUI v{{version}}？\n\n{{notes}}', en: 'Install dsh-TUI v{{version}} from the configured internal update manifest?\n\n{{notes}}' },
+  'offline-update-accept': { zh: '确认安装', en: 'Install update' },
+  'offline-update-decline': { zh: '暂不更新', en: 'Cancel update' },
+  'offline-update-cancelled': { zh: '已取消更新，没有下载更新包。', en: 'Update cancelled; the package was not downloaded.' },
+  'offline-update-check-failed': { zh: '无法连接内网更新服务；当前版本未更改，可稍后重试。', en: 'Could not reach the configured internal update service; the current version is unchanged. Try again later.' },
   // ── /reload (pi-style soft reload) ────────────────────────────────────
   'reload-header': { zh: '已重读偏好文件：', en: 'Preferences reloaded:' },
   'reload-applied': { zh: '{{kind}}  {{from}} → {{to}}（已应用）', en: '{{kind}}  {{from}} → {{to}} (applied)' },

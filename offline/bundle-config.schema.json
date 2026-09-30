@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dsh-TUI 离线环境打包配置 v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "distributionId",
+    "modelApiBaseUrl",
+    "npmRegistry",
+    "pythonIndexUrl",
+    "manifestUrl",
+    "releaseNotes",
+    "maxUpdateBytes",
+    "toolchains"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "distributionId": { "enum": ["superbpm", "hxfl"] },
+    "modelApiBaseUrl": { "$ref": "#/$defs/httpsUrl" },
+    "npmRegistry": { "$ref": "#/$defs/httpsUrl" },
+    "pythonIndexUrl": { "$ref": "#/$defs/httpsUrl" },
+    "manifestUrl": { "$ref": "#/$defs/httpsUrl" },
+    "releaseNotes": { "type": "string", "maxLength": 16384 },
+    "maxUpdateBytes": { "type": "integer", "minimum": 1, "maximum": 8589934592 },
+    "toolchains": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["win10-x64", "kylin-v10-x64", "kylin-v10-arm64"],
+      "properties": {
+        "win10-x64": { "$ref": "#/$defs/toolchain" },
+        "kylin-v10-x64": { "$ref": "#/$defs/toolchain" },
+        "kylin-v10-arm64": { "$ref": "#/$defs/toolchain" }
+      }
+    }
+  },
+  "$defs": {
+    "httpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s?#]+$",
+      "maxLength": 4096,
+      "not": { "pattern": "\\.(?:invalid)|example\\.com" }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "nodeVersion",
+        "gitVersion",
+        "pythonVersion",
+        "platformBaseline",
+        "sourceDirectory"
+      ],
+      "properties": {
+      "id": { "type": "string", "pattern": "^(superbpm|hxfl)-[A-Za-z0-9][A-Za-z0-9._-]{0,64}$" },
+        "nodeVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "gitVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "pythonVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "platformBaseline": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "sourceDirectory": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    }
+  }
+}

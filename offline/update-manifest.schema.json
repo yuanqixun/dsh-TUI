@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dsh-TUI 离线 Nginx 更新清单 v1",
+  "description": "同源 HTTPS、真实 UTC 日期、平台扩展名、工具层匹配和配置的部署大小上限由 src/offlineContracts.ts 额外校验。只登记实际验收的平台。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "version",
+    "publishedAt",
+    "releaseNotes",
+    "platforms"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "sourceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{40,64}$"
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "releaseNotes": {
+      "type": "string",
+      "maxLength": 16384,
+      "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+    },
+    "platforms": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "win10-x64": {
+          "$ref": "#/$defs/asset"
+        },
+        "kylin-v10-x64": {
+          "$ref": "#/$defs/asset"
+        },
+        "kylin-v10-arm64": {
+          "$ref": "#/$defs/asset"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "sizeBytes",
+        "sha256",
+        "requiredToolchainId"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 4096,
+          "pattern": "^(\\./|https://)[^\\s\\\\?#]+$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "requiredToolchainId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        }
+      }
+    }
+  }
+}

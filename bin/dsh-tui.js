@@ -621,7 +621,8 @@ const runDoctorChecks = () => {
     'DEEPSEEK_API_KEY',
     keyFromEnv ? L.keySetEnv : keyFromStore ? L.keySetStore : L.keyMissing,
   )
-  for (const candidate of [join(homedir(), '.dsh-tui', 'cordis.yml'), join(profileDir, 'cordis.patch.yml')]) {
+  const tuiDataDir = process.env.DSH_TUI_DATA_DIR ?? join(homedir(), '.dsh-tui')
+  for (const candidate of [join(tuiDataDir, 'cordis.yml'), join(profileDir, 'cordis.patch.yml')]) {
     report(existsSync(candidate), 'config', `${candidate}${existsSync(candidate) ? '' : `  ${L.missing}`}`)
   }
   return { hardFailure, lines }
@@ -1326,7 +1327,8 @@ if (!runningInsideProfile && ownVersion !== undefined && process.env.DSH_TUI_NO_
   }
   const readLastResumeTarget = () => {
     try {
-      return readFileSync(join(homedir(), '.dsh-tui', 'resume.txt'), 'utf8').trim()
+      const tuiDataDir = process.env.DSH_TUI_DATA_DIR ?? join(homedir(), '.dsh-tui')
+      return readFileSync(join(tuiDataDir, 'resume.txt'), 'utf8').trim()
     } catch {
       // 没有历史会话可恢复——静默忽略，正常冷启动。
     }

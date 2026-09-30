@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "version": "0.11.2",
+  "publishedAt": "2026-09-30T00:00:00Z",
+  "releaseNotes": "示例，非可安装更新；上传前替换版本、尺寸、摘要和工具层标识。",
+  "platforms": {
+    "win10-x64": {
+      "url": "./dsh-tui-0.11.2-win10-x64.zip",
+      "sizeBytes": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "requiredToolchainId": "win10-x64-tools-1"
+    },
+    "kylin-v10-x64": {
+      "url": "./dsh-tui-0.11.2-kylin-v10-x64.tar.gz",
+      "sizeBytes": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "requiredToolchainId": "kylin-v10-x64-tools-1"
+    },
+    "kylin-v10-arm64": {
+      "url": "./dsh-tui-0.11.2-kylin-v10-arm64.tar.gz",
+      "sizeBytes": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "requiredToolchainId": "kylin-v10-arm64-tools-1"
+    }
+  }
+}

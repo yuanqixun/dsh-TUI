@@ -20,7 +20,7 @@
 
 ### Requirement: 内网 OpenAI 兼容模型和仓库
 
-用户 SHALL 能通过现有 provider 配置内网 TokenHub 网关提供的 OpenAI-compatible API、模型和凭证。运行包 SHALL 为 npm 与 Python 命令使用构建时预置的内网源。服务或镜像失败 MUST 给出明确诊断且 MUST NOT 自动回退到公网服务/仓库。JDK/Maven 项目在用户另装 JDK/Maven 后由其本地命令和项目配置管理。
+用户 SHALL 能通过现有 provider 配置内网 TokenHub 网关提供的 OpenAI-compatible API、模型和凭证。每个构建 profile SHALL 为该发行环境预置模型 API base URL、npm registry 与 Python package index；运行包 SHALL 使用预置内网源。用户可在安装后编辑包内运行配置并重启生效。模型 API key MUST 由用户安装后配置，不得写入构建 profile 或包内运行配置。服务或镜像失败 MUST 给出明确诊断且 MUST NOT 自动回退到公网服务/仓库。JDK/Maven 项目在用户另装 JDK/Maven 后由其本地命令和项目配置管理。
 
 #### Scenario: 对话和工具调用
 - **WHEN** 用户配置有效 TokenHub OpenAI 兼容端点并发送需工具的请求

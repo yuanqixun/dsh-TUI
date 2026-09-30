@@ -38,6 +38,7 @@ import { clearResumeTarget, resumeTargetFromArgv, writeResumeTarget } from '../s
 import { readHomePrefs } from '../homePrefs.js'
 import { resolveSessionCwd } from '../utils/workspaceRoot.js'
 import { beginRestartAttempt, checkForTuiUpdate, installedTuiVersion, isBootDeadlockTarget, isStandaloneRuntime, isVersionNewer, logRestartEvent, resolveDshProfileName, resolveTuiUpdateTarget, restartTui, updateTuiAndRestart, writeHandoffNotice } from '../update.js'
+import type { OfflineUpdateTarget } from '../offlineUpdate.js'
 import { getLang, isLang, resolveStartupLang, setLang, t, writeLangPref } from '../i18n.js'
 import { DEFAULT_PAGE_MARGIN, DEFAULT_STATUS_BAR, applyLatexMath, applyMermaidDiagrams, applyPageMargin, isPageMarginMode, normalizePageMargin, normalizeScrollGutter, normalizeStatusBar, normalizeToolBackground, parsePageMarginSpec, type PageMarginSetting, type ScrollGutterMode, type StatusBarConfig, type ToolBackground } from '../tuiDisplayPrefs.js'
 import {
@@ -1555,6 +1556,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
   let exited = false
   let updateRequested = false
   let updateTargetVersion: string | undefined
+  let offlineUpdateTarget: OfflineUpdateTarget | undefined
   // `/restart` flag: same exit funnel as `/update` minus the pnpm step —
   // write the resume target, restore the terminal, respawn the process with
   // the original argv, and let the fresh boot attach the same session.
@@ -1601,7 +1603,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
           bootedFullscreen,
           hintText,
           undefined,
-          () => runUpdate(ctx, profile, channel.agentId, updateTargetVersion),
+          () => runUpdate(ctx, profile, channel.agentId, updateTargetVersion, offlineUpdateTarget),
         )
         return
       }
@@ -1729,14 +1731,15 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
       // Confirm the target version before tearing the TUI down: on an
       // already-latest install, an unconditional update+restart would churn
       // the process and then trip the "version did not advance" warning.
-      void resolveTuiUpdateTarget().then((target) => {
+      void resolveTuiUpdateTarget().then(async (target) => {
         if (exited || updateRequested) return
         if (target.kind === 'latest') {
           notifyChannel(t('update-already-latest', { current: target.current }), { color: 'warning' })
           return
         }
         if (target.kind === 'unknown') {
-          notifyChannel(t('update-check-failed'))
+          notifyChannel(t(process.env.DSH_TUI_OFFLINE === '1' ? 'offline-update-check-failed' : 'update-check-failed'))
+          if (process.env.DSH_TUI_OFFLINE === '1') return
         } else {
           // 0.7.0/0.7.1 hard-inject tuiWorkspaces at the code level; under
           // an older global launcher patch (no service row) that is a
@@ -1754,6 +1757,29 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
             notifyChannel(t('update-mirror-lag', { latest: target.latest, authoritative: target.authoritative }))
           }
           updateTargetVersion = target.latest
+        }
+        if (process.env.DSH_TUI_OFFLINE === '1') {
+          if (target.kind !== 'update' || target.offlineTarget === undefined) return
+          try {
+            const answer = await questionStore.ask({
+              questions: [{
+                id: 'offline-update-confirm',
+                question: t('offline-update-confirm', { version: target.latest, notes: (target.releaseNotes ?? '').slice(0, 1800) }),
+                options: [
+                  { label: t('offline-update-accept') },
+                  { label: t('offline-update-decline') },
+                ],
+              }],
+            })
+            const choice = answer.answers.find(item => item.id === 'offline-update-confirm')?.selected[0]
+            if (choice !== t('offline-update-accept')) {
+              notifyChannel(t('offline-update-cancelled'))
+              return
+            }
+            offlineUpdateTarget = target.offlineTarget
+          } catch {
+            return
+          }
         }
         if (isStandaloneRuntime()) {
           notifyChannel(t('update-standalone-starting'))
@@ -1795,6 +1821,9 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
     children: marginChildren,
   })
   instance = await render(tree, { exitOnCtrlC: false, terminalImages: bootedTerminalImages })
+  if (process.env.DSH_TUI_OFFLINE === '1' && typeof process.send === 'function') {
+    process.send({ type: 'dsh-tui-offline-ready' })
+  }
   const isRecompose = lastBootedFullscreen !== undefined
   lastBootedFullscreen = bootedFullscreen
   lastBootedTerminalImages = bootedTerminalImages
@@ -1843,7 +1872,7 @@ export async function apply(ctx: Context, runtimeConfig: RuntimeConfig<Config>, 
     // checksum workflow landed) still updates, but the notice must say the
     // package's integrity cannot be verified — silent degradation is exactly
     // how the unverified-download window went unnoticed.
-    const suffix = update.isStandalone && update.checksumUrl === undefined
+    const suffix = update.isStandalone && update.checksumUrl === undefined && process.env.DSH_TUI_OFFLINE !== '1'
       ? ` ${t('update-standalone-no-checksum')}`
       : ''
     notifyChannel(
@@ -2330,13 +2359,14 @@ function runUpdate(
   profile: string | undefined,
   sessionId: string,
   targetVersion: string | undefined,
+  offlineTarget: OfflineUpdateTarget | undefined,
 ): void {
   disposeRootAndThen(ctx, () => {
     if (profile === undefined) {
       process.stderr.write(`\n${t('update-aborted-no-profile')}\n`)
       process.exit(1)
     }
-    void updateTuiAndRestart(sessionId, profile, targetVersion).then(
+    void updateTuiAndRestart(sessionId, profile, targetVersion, offlineTarget).then(
       ({ updateCode, restartCode }) => {
         if (updateCode !== 0) {
           process.stderr.write(
